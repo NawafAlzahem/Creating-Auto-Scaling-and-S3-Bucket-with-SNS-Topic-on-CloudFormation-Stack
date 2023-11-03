@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creating Auto Scaling and S3 Bucket with SNS Topic on CloudFormation Stack
+
+Resources:
+  LaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: ami-0c85e22f0829284aa
+      InstanceType: t2.micro
+      SecurityGroups:
+        - sg-0206cd191f0db40dd
+      KeyName: AmazonKeyPair
+      UserData: !Base64 |
+        #!/bin/bash
+        # Use this for your user data (script from top to bottom)
+        # install httpd (Linux 2 version)
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "<h1>AmazonAutoScaling </h1>" > /var/www/html/index.html
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        - ap-southeast-1a
+        - ap-southeast-1b
+        - ap-southeast-1c
+      LaunchConfigurationName: !Ref LaunchConfig
+      MinSize: 1
+      MaxSize: 4
+      DesiredCapacity: 2
+      VPCZoneIdentifier:
+        - subnet-0fae78957a7b0283f
+        - subnet-02126dfcfd70ea03d
+        - subnet-07b946d07576138c0
+      Tags:
+        - Key: Name
+          Value: AmazonAutoScaleInstance
+          PropagateAtLaunch: 'true'
+
+  ScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: '300'
+      ScalingAdjustment: '1'
+
+  ScaleInAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Scale in if CPU usage is below 30%'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '30'
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScalingPolicy
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+
+  ScaleOutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Scale out if CPU usage is above 70%'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '70'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScalingPolicy
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+
+Parameters:
+  EmailAddress:
+    Type: String
+    Default: nawaf_777@outlook.com
+    Description: Email address for SNS notifications
+
+Resources:
+  NawafBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: nawaf-s3-bucket
+
+  NawafSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: NawafSNSTopic
+      TopicName: nawaf-sns-topic
+
+  NawafSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref NawafSNSTopic
+      Endpoint: !Ref EmailAddress
+
+Outputs:
+  BucketName:
+    Description: "S3 Bucket Name"
+    Value: !Ref NawafBucket
+
+  SnsTopicArn:
+    Description: "SNS Topic ARN"
+    Value: !Ref NawafSNSTopic
