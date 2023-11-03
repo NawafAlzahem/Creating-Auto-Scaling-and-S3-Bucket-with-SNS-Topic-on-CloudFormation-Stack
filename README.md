@@ -16,4 +16,4 @@ S3 Bucket: A bucket named nawaf-s3-bucket is created to host the static website.
 SNS Topic and Subscription: An SNS Topic named nawaf-sns-topic is created. The provided email address is subscribed to this topic to receive notifications.
 
 Access the Website:
-Link to the hosted website
+Link to the hosted website:  http://nawaf-s3-bucket.s3-website-ap-southeast-1.amazonaws.com/
